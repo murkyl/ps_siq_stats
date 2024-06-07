@@ -1,0 +1,23 @@
+---
+# The format of this file is as follows:
+#
+#- cluster:
+#    user: ""
+#    password: ""
+#    endpoint: ""
+#- cluster:
+#    user: ""
+#    password: ""
+#    endpoint: ""
+#
+# Provide the user name and password for each cluster that will be monitored
+# The endpoint can be an IP address or FQDN with the port number if required
+#
+- cluster:
+    user: "rbac_user"
+    password: "a_secret"
+    endpoint: "192.168.1.50:8080"
+- cluster:
+    user: "other_user"
+    password: "another_secret"
+    endpoint: "192.168.1.70:8080"
