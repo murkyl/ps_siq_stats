@@ -28,3 +28,7 @@ clean_compiled:
 .PHONY: clean_releases
 clean_releases:
 	-rm -rf releases
+
+.PHONY: format
+format:
+	find . -name \*.py -exec black {} +
