@@ -8,7 +8,7 @@ This script currently only supports providing data to a Prometheus database.
 
 ### Dependencies
 The following Python libraries are required for this script to run:
- - yaml
+ - pyyaml
  - prometheus-client
 
 ### Configuration
