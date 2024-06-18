@@ -73,6 +73,7 @@ Return values
 2   Missing Python libraries
 3   YAML configuration file load error
 4   YAML configuration file parse error
+5   No cluster endpoints found
 """.format(
     pname=ENV_PREFIX
 )
