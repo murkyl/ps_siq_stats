@@ -5,17 +5,15 @@ Prometheus client to export PowerScale SyncIQ replication policy status
 """
 # fmt: off
 __title__         = "ps_siq_stats"
-__version__       = "0.1.0"
-__date__          = "07 June 2024"
+__version__       = "0.1.1"
+__date__          = "18 June 2024"
 __license__       = "MIT"
 __author__        = "Andrew Chung <andrew.chung@dell.com>"
 __maintainer__    = "Andrew Chung <andrew.chung@dell.com>"
 __email__         = "andrew.chung@dell.com"
 # fmt: on
 import datetime
-import inspect
 import logging
-import os
 import signal
 import sys
 import time
@@ -40,7 +38,6 @@ except:
 DEFAULT_LOG_FORMAT = "%(asctime)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s"
 LOG = logging.getLogger()
 PSCALE_ENDPOINTS = []
-PSCALE_CONNECTIONS = []
 SEC_TO_MILLISEC = 1000
 URI_CLUSTER_CONFIG = "/cluster/config"
 URI_SIQ_POLICIES = "/sync/policies"
@@ -145,7 +142,7 @@ def setup_logging(options):
 
 
 def signal_handler(signum, frame):
-    global PSCALE_CONNECTIONS
+    global PSCALE_ENDPOINTS
     if signum in [signal.SIGINT, signal.SIGTERM]:
         sys.stdout.write("Terminating SyncIQ stats proxy\n")
         sys.exit(0)
@@ -158,7 +155,7 @@ def to_float(val):
 
 
 class SIQCollector(object):
-    global PSCALE_CONNECTIONS
+    global PSCALE_ENDPOINTS
 
     def __init__(self):
         self.base_name = "isilon"
@@ -172,8 +169,8 @@ class SIQCollector(object):
         ]
 
     def collect(self):
-        for conn in PSCALE_CONNECTIONS:
-            siq_stats = get_siq_rp_stats(conn)
+        for endpoint in PSCALE_ENDPOINTS:
+            siq_stats = get_siq_rp_stats(endpoint["connection"])
             # print_stats(siq_stats)
             for result in siq_stats:
                 policy = result["policy"]
@@ -221,7 +218,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    # Setup command line parser and parse agruments
+    # Setup command line parser and parse arguments
     (parser, options, args) = options_parser.parse(sys.argv, __version__, __date__)
     setup_logging(options)
     # Validate config options
@@ -251,18 +248,19 @@ def main():
         sys.stdout.write("An error occurred parsing the configuration file: %s\n" % e)
         sys.exit(4)
 
-    if not PSCALE_CONNECTIONS:
-        for endpoint in PSCALE_ENDPOINTS:
-            PSCALE_CONNECTIONS.append(
-                papi_lite.papi_lite(
-                    user=endpoint["user"],
-                    password=endpoint["password"],
-                    server=endpoint["endpoint"],
-                )
-            )
-            LOG.debug("Connected to: %s" % endpoint["endpoint"])
-            # Set sensitive information to None
-            endpoint["password"] = None
+    if not PSCALE_ENDPOINTS:
+        LOG.critical("No cluster endpoints found in the configuration file.")
+        sys.exit(5)
+    for endpoint in PSCALE_ENDPOINTS:
+        conn = papi_lite.papi_lite(
+            user=endpoint["user"],
+            password=endpoint["password"],
+            server=endpoint["endpoint"],
+        )
+        LOG.debug("Connected to: %s" % endpoint["endpoint"])
+        # Set sensitive information to None
+        endpoint["password"] = None
+        endpoint["connection"] = conn
 
     if not PROMETHEUS_MODULES_AVAILABLE:
         sys.stderr.write(constants.STR_MISSING_MODULE_PROMETHEUS)
