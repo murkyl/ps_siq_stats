@@ -5,7 +5,7 @@ Prometheus client to export PowerScale SyncIQ replication policy status
 """
 # fmt: off
 __title__         = "ps_siq_stats"
-__version__       = "0.1.1"
+__version__       = "0.2.0"
 __date__          = "18 June 2024"
 __license__       = "MIT"
 __author__        = "Andrew Chung <andrew.chung@dell.com>"
@@ -66,21 +66,26 @@ def get_siq_policies(papi):
 
 
 def get_siq_report(papi, policy_name, state=None, limit=10):
+    reports = []
     if not state:
-        state = "finished"
-    data = papi.rest_call(
-        URI_SIQ_REPORTS,
-        "GET",
-        query_args={
-            "limit": "%s" % limit,
-            "policy_name": policy_name,
-            "reports_per_policy": "%s" % limit,
-            "state": state,
-        },
-    )
-    if data[0] != 200:
-        raise Exception("Error in PAPI request to {url}:\n{err}".format(URI_SIQ_REPORTS))
-    return data[2].get("reports")
+        state = ["finished", "skipped"]
+    elif isinstance(state, str):
+        state = [state]
+    for siq_state in state:
+        data = papi.rest_call(
+            URI_SIQ_REPORTS,
+            "GET",
+            query_args={
+                "limit": "%s" % limit,
+                "policy_name": policy_name,
+                "reports_per_policy": "%s" % limit,
+                "state": siq_state,
+            },
+        )
+        if data[0] != 200:
+            raise Exception("Error in PAPI request to {url}:\n{err}".format(URI_SIQ_REPORTS))
+        reports = reports + data[2].get("reports", [])
+    return reports
 
 
 def get_siq_rp_stats(papi_endpoint):
@@ -96,13 +101,14 @@ def get_siq_rp_stats(papi_endpoint):
     for policy_name in siq_policies.keys():
         all_reports = get_siq_report(papi_endpoint, policy_name, limit=1)
         finished_reports = sorted(
-            [x for x in all_reports if x["state"] == "finished" and x["end_time"]],
+            [x for x in all_reports if (x["state"] == "finished" or x["state"] == "skipped") and x["end_time"]],
             key=lambda x: x["end_time"],
         )
-        siq_reports[policy_name] = finished_reports[-1]
+        if finished_reports:
+            siq_reports[policy_name] = finished_reports[-1]
     for policy_name in siq_policies.keys():
         policy = siq_policies[policy_name]
-        report = siq_reports[policy_name]
+        report = siq_reports.get(policy_name, [])
         results.append({"cluster_name": cluster_name, "policy": policy, "report": report})
     return results
 
@@ -175,6 +181,8 @@ class SIQCollector(object):
             for result in siq_stats:
                 policy = result["policy"]
                 report = result["report"]
+                if not report:
+                    continue
                 for stat in [
                     ["bytes", "Bytes transferred in the last successful SyncIQ run"],
                     ["job_id", "SyncIQ job ID for this replication"],
